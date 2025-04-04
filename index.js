@@ -2,11 +2,33 @@ const express = require("express");
 const app = express();
 require("dotenv").config();
 const cors = require("cors");
+const jwt = require("jsonwebtoken");
 const port = process.env.PORT || 5000;
 
 // MIDDLEWARES
 app.use(cors());
 app.use(express.json());
+
+// custom middleware
+const verifyToken = (req, res, next) => {
+  console.log("inside verifytoken=>", req.headers.authorization);
+  if (!req.headers.authorization) {
+    return res.status(401).send({ message: "Forbidden access!" });
+  }
+
+  const token = req.headers.authorization.split(" ")[1];
+
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+    if (err) {
+      return res.status(401).send({ msg: "forbidden" });
+    }
+
+    console.log("Decoded=>>>",decoded);
+
+    req.decoded = decoded;
+    next();
+  });
+};
 
 // mongodb connection
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
@@ -33,6 +55,16 @@ async function run() {
     const usersCollection = client.db("bistroBossDB").collection("users");
 
     // APIs
+
+    // jwt apis
+    app.post("/jwt", async (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: "24h",
+      });
+
+      res.send({ token });
+    });
 
     // menuCollection APIs
     // GET all menu items
@@ -69,7 +101,7 @@ async function run() {
     //  delete single cart item
     app.delete("/carts/:email", async (req, res) => {
       const email = req.params.email;
-      const query = { email:email };
+      const query = { email: email };
       // const query = { _id: new ObjectId(id) };
       const result = await cartsCollection.deleteOne(query);
       res.send(result);
@@ -78,7 +110,8 @@ async function run() {
     // usersCollection APIs
     // (name,email)
     // GET all users API
-    app.get("/users", async (req, res) => {
+    app.get("/users", verifyToken, async (req, res) => {
+      console.log("REQ headers:->", req.headers);
       const result = await usersCollection.find().toArray();
       res.status(200).send(result);
     });
@@ -103,7 +136,7 @@ async function run() {
     app.delete("/users/:id", async (req, res) => {
       const id = req.params.id;
       // console.log("id=>",id);
-      const query = {_id:new ObjectId(id)};
+      const query = { _id: new ObjectId(id) };
       const result = await usersCollection.deleteOne(query);
 
       res.send(result);
@@ -111,21 +144,19 @@ async function run() {
     });
 
     // PATCH API: users
-    app.patch('/users/:id',async(req,res)=>{
-      const id=req.params.id 
-      const query={_id:new ObjectId(id)}
-      const {newRole}=req.body 
-      const updatedData={
-        $set:{
-          role:newRole
-        }
-      }
-      console.log("id, role=>",id,newRole);
-      const result=await usersCollection.updateOne(query,updatedData)
-      res.send(result)
-    })
-
-
+    app.patch("/users/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const { newRole } = req.body;
+      const updatedData = {
+        $set: {
+          role: newRole,
+        },
+      };
+      console.log("id, role=>", id, newRole);
+      const result = await usersCollection.updateOne(query, updatedData);
+      res.send(result);
+    });
 
     // **************************
 
