@@ -30,7 +30,6 @@ const verifyToken = (req, res, next) => {
   });
 };
 
-
 // mongodb connection
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.uomr8.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -55,29 +54,23 @@ async function run() {
     const cartsCollection = client.db("bistroBossDB").collection("carts");
     const usersCollection = client.db("bistroBossDB").collection("users");
 
-    
     // verifyAdmin middleware
-    const verifyAdmin=async(req,res,next)=>{
-      const email=req.decoded.email 
-      const query={email:email}
-      
-      const user=await usersCollection.findOne(query)
-      
-      const isAdmin=user?.role==='admin'
-      if(!isAdmin){
-      
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email: email };
+
+      const user = await usersCollection.findOne(query);
+
+      const isAdmin = user?.role === "admin";
+      if (!isAdmin) {
         console.log("Get out , you notAdmin begger");
-        return  res.status(403).send({msg:'forbidden access'})
+        return res.status(403).send({ msg: "forbidden access" });
       }
-      
-      next()
-      
-      }
-      
-    
+
+      next();
+    };
+
     // APIs
-
-
 
     // jwt apis
     app.post("/jwt", async (req, res) => {
@@ -97,13 +90,55 @@ async function run() {
       res.send(result);
     });
 
-    // POST a new menu item
-    app.post('/menu',verifyToken,verifyAdmin,async(req,res)=>{
-      const newFood=req.body 
-      const result=await menuCollection.insertOne(newFood)
+    // GET a menu item API
+    app.get("/menu/:id", async (req, res) => {
+      const id = req.params.id;
+      // console.log("menu item id=>>",id);
+      console.log("GET /menu/:id HIT");
+      const query = { _id: id };
+      // const query={_id:new ObjectId(id) }
+      const result = await menuCollection.findOne(query);
 
-      res.send(result)
-    })
+      console.log("result=>", result);
+      // res.send([])
+      res.send(result);
+    });
+
+    // POST a new menu item
+    app.post("/menu", verifyToken, verifyAdmin, async (req, res) => {
+      const newFood = req.body;
+      const result = await menuCollection.insertOne(newFood);
+
+      res.send(result);
+    });
+
+    // DELETE API: a food item
+    app.delete("/menu/:id", verifyToken, verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: id };
+      const result = await menuCollection.deleteOne(query);
+      res.send(result);
+    });
+
+    // PATCH API: partial update a menu item
+    app.patch("/menu/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: id };
+      const foodItem = req.body;
+      const updatedItem = {
+        $set: {
+          name: foodItem.name,
+          recipe: foodItem.recipe,
+          category: foodItem.category,
+          price: foodItem.price,
+        },
+      };
+      // console.log("foodItem==", foodItem);
+
+      const result=await menuCollection.updateOne(query,updatedItem)
+
+      res.status(200).send(result);
+    });
 
     // reviewsCollection APIs
     // GET all reviewsCollection items
@@ -115,22 +150,21 @@ async function run() {
 
     // cartsCollection APIs
     // get all api
-    app.get("/carts",verifyToken, async (req, res) => {
+    app.get("/carts", verifyToken, async (req, res) => {
       const query = { userEmail: req.query.email };
       const result = await cartsCollection.find(query).toArray();
       res.send(result);
     });
 
     // insert a carts item (itemId,userEmail,ItemName,ItemImage,price)
-    app.post("/carts",verifyToken, async (req, res) => {
+    app.post("/carts", verifyToken, async (req, res) => {
       const cartItem = req.body;
       // console.log(cartItem);
       const result = await cartsCollection.insertOne(cartItem);
       res.send(result);
-      
     });
     //  delete single cart item
-    app.delete("/carts/:id",verifyToken ,async (req, res) => {
+    app.delete("/carts/:id", verifyToken, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await cartsCollection.deleteOne(query);
@@ -140,34 +174,31 @@ async function run() {
     // usersCollection APIs
     // (name,email)
     // GET all users API
-    app.get("/users", verifyToken,verifyAdmin, async (req, res) => {
+    app.get("/users", verifyToken, verifyAdmin, async (req, res) => {
       // console.log("REQ headers:->", req.headers);
       const result = await usersCollection.find().toArray();
       res.status(200).send(result);
     });
 
     // GET API: check user role:admin/user
-    app.get('/users/:email',verifyToken,async(req,res)=>{
-      const email=req.params.email 
+    app.get("/users/:email", verifyToken, async (req, res) => {
+      const email = req.params.email;
 
       //real user or intruder checking info of other user
-      if(email!==req.decoded.email){
-        return res.status(401).send({msg:"forbidden"})
+      if (email !== req.decoded.email) {
+        return res.status(401).send({ msg: "forbidden" });
       }
 
-      const query={email:email}
-      const user=await usersCollection.findOne(query)
-      
-      let admin=false 
-      if(user){
-        admin=user.role==="admin"
+      const query = { email: email };
+      const user = await usersCollection.findOne(query);
+
+      let admin = false;
+      if (user) {
+        admin = user.role === "admin";
       }
 
-      res.send({admin})
-
-
-    })
-    
+      res.send({ admin });
+    });
 
     // POST- create new user
     app.post("/users", async (req, res) => {
