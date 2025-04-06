@@ -85,6 +85,30 @@ async function run() {
       res.send({ token });
     });
 
+
+    // Admin-stats
+
+    app.get('/admin-stats',async(req,res)=>{
+      const usersStat= await usersCollection.estimatedDocumentCount()
+      const reviewsStat= await reviewsCollection.estimatedDocumentCount()
+      const menuStat= await menuCollection.estimatedDocumentCount()
+      const paymentsStat= await paymentsCollection.estimatedDocumentCount()
+      const revenueStat= await paymentsCollection.aggregate([
+        {
+          $group:{
+            _id:null,
+            totalRevenue:{
+              $sum:'$price'
+            }
+          }
+        }
+      ]).toArray()
+
+      const revenue=revenueStat.length>0? revenueStat[0].totalRevenue.toFixed(2):0;
+      res.send([revenue,usersStat,menuStat,paymentsStat,reviewsStat])
+      // res.send({usersStat,reviewsStat,menuStat,paymentsStat,revenue})
+    })
+
     // PAYMENT GATEWAY API
     app.post('/create-payment-intent',verifyToken,async(req,res)=>{
       const {price}=req.body 
