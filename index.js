@@ -4,6 +4,8 @@ require("dotenv").config();
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const port = process.env.PORT || 5000;
+// payment gateway
+const stripe=require('stripe')(process.env.STRIPE_SECRET_KEY)
 
 // MIDDLEWARES
 app.use(cors());
@@ -81,6 +83,23 @@ async function run() {
 
       res.send({ token });
     });
+
+    // PAYMENT GATEWAY API
+    app.post('/create-payment-intent',verifyToken,async(req,res)=>{
+      const {price}=req.body 
+      const amount=parseInt(price*100)
+      console.log("amount==>",amount);
+
+      const paymentIntent=await stripe.paymentIntents.create({
+        amount:amount,
+        currency:"usd",
+        payment_method_types:['card']
+      })
+
+      res.send({
+        clientSecret:paymentIntent.client_secret
+      })
+    })
 
     // menuCollection APIs
     // GET all menu items
