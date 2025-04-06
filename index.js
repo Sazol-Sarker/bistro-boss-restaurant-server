@@ -55,6 +55,7 @@ async function run() {
     const reviewsCollection = client.db("bistroBossDB").collection("reviews");
     const cartsCollection = client.db("bistroBossDB").collection("carts");
     const usersCollection = client.db("bistroBossDB").collection("users");
+    const paymentsCollection = client.db("bistroBossDB").collection("payments");
 
     // verifyAdmin middleware
     const verifyAdmin = async (req, res, next) => {
@@ -101,6 +102,37 @@ async function run() {
       })
     })
 
+    // PaymentCollection
+    // GET API
+    app.get('/payments/:email',async(req,res)=>{
+      const query={email:req.params.email}
+      // console.log(query);
+      const result=await paymentsCollection.find(query).toArray()
+      // console.log(result);
+      res.send(result)
+    })
+
+    // POST API: paymentColection
+    app.post('/payments',async(req,res)=>{
+      const payment=req.body 
+      // console.log("payment",payment);
+      const paymentResult=await paymentsCollection.insertOne(payment)
+
+      // res.send(paymentResult)
+
+      // carefully delete item from cart
+      // not working or refetch not working on client
+      const query={
+        _id:{
+          $in:payment.cartIds.map(id=>new ObjectId(id))
+        }
+      }
+
+      const deleteResult=await cartsCollection.deleteMany(query)
+
+      res.send({paymentResult,deleteResult})
+    })
+
     // menuCollection APIs
     // GET all menu items
     app.get("/menu", async (req, res) => {
@@ -113,12 +145,12 @@ async function run() {
     app.get("/menu/:id", async (req, res) => {
       const id = req.params.id;
       // console.log("menu item id=>>",id);
-      console.log("GET /menu/:id HIT");
+      // console.log("GET /menu/:id HIT");
       const query = { _id: id };
       // const query={_id:new ObjectId(id) }
       const result = await menuCollection.findOne(query);
 
-      console.log("result=>", result);
+      // console.log("result=>", result);
       // res.send([])
       res.send(result);
     });
