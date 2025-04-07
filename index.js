@@ -7,6 +7,15 @@ const port = process.env.PORT || 5000;
 // payment gateway
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
+// Mailgun mailer
+const formData = require("form-data");
+const Mailgun = require("mailgun.js");
+const mailgun = new Mailgun(formData);
+const mg = mailgun.client({
+  username: "api",
+  key: process.env.MAILGUN_API_KEY,
+});
+
 // MIDDLEWARES
 app.use(cors());
 app.use(express.json());
@@ -113,36 +122,49 @@ async function run() {
 
     // /user-stats API
     app.get("/user-stats/:email", async (req, res) => {
-      const email=req.params.email
-      const orderQuery = { userEmail:email  };
+      const email = req.params.email;
+      const orderQuery = { userEmail: email };
       const query = { email: email };
       console.log("user-stats query=>", query);
-      const reviewsCount=await reviewsCollection.countDocuments(query);
-      const ordersCountInCart=await cartsCollection.countDocuments(orderQuery);
-      const paymentsCount=await paymentsCollection.countDocuments(query);
-      const ordersCount=paymentsCount
-    
-    const totalMoneySpent=await paymentsCollection.aggregate([
-      {
-        $match:{
-          email:email
-        }
-      },
-      {
-        $group:{
-          _id:null,
-          totalSpent:{
-            $sum:{
-              $toDouble: "$price"
-            }
-          }
-        }
-      }
-    ]).toArray()
+      const reviewsCount = await reviewsCollection.countDocuments(query);
+      const ordersCountInCart = await cartsCollection.countDocuments(
+        orderQuery
+      );
+      const paymentsCount = await paymentsCollection.countDocuments(query);
+      const ordersCount = paymentsCount;
 
-    const totalSpent=totalMoneySpent.reduce((sum,item)=>sum+item.totalSpent,0)
+      const totalMoneySpent = await paymentsCollection
+        .aggregate([
+          {
+            $match: {
+              email: email,
+            },
+          },
+          {
+            $group: {
+              _id: null,
+              totalSpent: {
+                $sum: {
+                  $toDouble: "$price",
+                },
+              },
+            },
+          },
+        ])
+        .toArray();
 
-      res.send([totalSpent,ordersCount,reviewsCount,paymentsCount,ordersCountInCart]);
+      const totalSpent = totalMoneySpent.reduce(
+        (sum, item) => sum + item.totalSpent,
+        0
+      );
+
+      res.send([
+        totalSpent,
+        ordersCount,
+        reviewsCount,
+        paymentsCount,
+        ordersCountInCart,
+      ]);
     });
 
     // PAYMENT GATEWAY API
@@ -177,6 +199,47 @@ async function run() {
       const payment = req.body;
       // console.log("payment",payment);
       const paymentResult = await paymentsCollection.insertOne(payment);
+
+      // send mail using MAILGUN
+
+      // mg.messages
+      //   .create("sandbox-123.mailgun.org", {
+      //     from: `Excited User <mailgun@${process.env.MAILGUN_DOMAIN_EMAIL}>`,
+      //     to: ["sazolsarker1@gmail.com"],
+      //     subject: "Foods order payment received!",
+      //     text: "Thanks for choosing us.",
+      //     html: "<h1></h1>",
+      //   })
+      mg.messages
+        .create(process.env.MAILGUN_DOMAIN_EMAIL, {
+          from: `Your Restaurant <mailgun@${process.env.MAILGUN_DOMAIN_EMAIL}>`,
+          to: ["werehe6859@provko.com"],
+          subject: "Payment Confirmation – Thanks for Your Order!",
+          text: `Hi there,
+
+We’ve received your payment successfully. Thank you for ordering with us!
+
+Your delicious food is being prepared and will be on its way soon.
+
+If you have any questions or special requests, feel free to reply to this email.
+
+Bon appétit!
+– The Your Restaurant Team`,
+          html: `
+      <div style="font-family: Arial, sans-serif; color: #333;">
+        <h2>Thank you for your {payment.price.toFixed(2)} payment!</h2>
+        <p>Hi there,</p>
+        <p>We’ve successfully received your payment and are now preparing your order.</p>
+        <p>Our team is making sure everything is perfect, and your food will be on the way shortly!</p>
+        <p>If you have any questions, feel free to reply to this email.</p>
+        <br />
+        <p>Bon appétit!<br />– The <strong>Your Restaurant</strong> Team</p>
+      </div>
+    `,
+        })
+
+        .then((msg) => console.log(msg)) // logs response data
+        .catch((err) => console.error(err)); // logs any error
 
       // res.send(paymentResult)
 
