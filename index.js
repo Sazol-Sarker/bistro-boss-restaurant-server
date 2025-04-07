@@ -5,7 +5,7 @@ const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const port = process.env.PORT || 5000;
 // payment gateway
-const stripe=require('stripe')(process.env.STRIPE_SECRET_KEY)
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
 // MIDDLEWARES
 app.use(cors());
@@ -85,77 +85,113 @@ async function run() {
       res.send({ token });
     });
 
-
     // Admin-stats
 
-    app.get('/admin-stats',async(req,res)=>{
-      const usersStat= await usersCollection.estimatedDocumentCount()
-      const reviewsStat= await reviewsCollection.estimatedDocumentCount()
-      const menuStat= await menuCollection.estimatedDocumentCount()
-      const paymentsStat= await paymentsCollection.estimatedDocumentCount()
-      const revenueStat= await paymentsCollection.aggregate([
-        {
-          $group:{
-            _id:null,
-            totalRevenue:{
-              $sum:'$price'
+    app.get("/admin-stats", verifyToken, verifyAdmin, async (req, res) => {
+      const usersStat = await usersCollection.estimatedDocumentCount();
+      const reviewsStat = await reviewsCollection.estimatedDocumentCount();
+      const menuStat = await menuCollection.estimatedDocumentCount();
+      const paymentsStat = await paymentsCollection.estimatedDocumentCount();
+      const revenueStat = await paymentsCollection
+        .aggregate([
+          {
+            $group: {
+              _id: null,
+              totalRevenue: {
+                $sum: "$price",
+              },
+            },
+          },
+        ])
+        .toArray();
+
+      const revenue =
+        revenueStat.length > 0 ? revenueStat[0].totalRevenue.toFixed(2) : 0;
+      res.send([revenue, usersStat, menuStat, paymentsStat, reviewsStat]);
+      // res.send({usersStat,reviewsStat,menuStat,paymentsStat,revenue})
+    });
+
+    // /user-stats API
+    app.get("/user-stats/:email", async (req, res) => {
+      const email=req.params.email
+      const orderQuery = { userEmail:email  };
+      const query = { email: email };
+      console.log("user-stats query=>", query);
+      const reviewsCount=await reviewsCollection.countDocuments(query);
+      const ordersCountInCart=await cartsCollection.countDocuments(orderQuery);
+      const paymentsCount=await paymentsCollection.countDocuments(query);
+      const ordersCount=paymentsCount
+    
+    const totalMoneySpent=await paymentsCollection.aggregate([
+      {
+        $match:{
+          email:email
+        }
+      },
+      {
+        $group:{
+          _id:null,
+          totalSpent:{
+            $sum:{
+              $toDouble: "$price"
             }
           }
         }
-      ]).toArray()
+      }
+    ]).toArray()
 
-      const revenue=revenueStat.length>0? revenueStat[0].totalRevenue.toFixed(2):0;
-      res.send([revenue,usersStat,menuStat,paymentsStat,reviewsStat])
-      // res.send({usersStat,reviewsStat,menuStat,paymentsStat,revenue})
-    })
+    const totalSpent=totalMoneySpent.reduce((sum,item)=>sum+item.totalSpent,0)
+
+      res.send([totalSpent,ordersCount,reviewsCount,paymentsCount,ordersCountInCart]);
+    });
 
     // PAYMENT GATEWAY API
-    app.post('/create-payment-intent',verifyToken,async(req,res)=>{
-      const {price}=req.body 
-      const amount=parseInt(price*100)
-      console.log("amount==>",amount);
+    app.post("/create-payment-intent", verifyToken, async (req, res) => {
+      const { price } = req.body;
+      const amount = parseInt(price * 100);
+      console.log("amount==>", amount);
 
-      const paymentIntent=await stripe.paymentIntents.create({
-        amount:amount,
-        currency:"usd",
-        payment_method_types:['card']
-      })
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: "usd",
+        payment_method_types: ["card"],
+      });
 
       res.send({
-        clientSecret:paymentIntent.client_secret
-      })
-    })
+        clientSecret: paymentIntent.client_secret,
+      });
+    });
 
     // PaymentCollection
     // GET API
-    app.get('/payments/:email',async(req,res)=>{
-      const query={email:req.params.email}
+    app.get("/payments/:email", async (req, res) => {
+      const query = { email: req.params.email };
       // console.log(query);
-      const result=await paymentsCollection.find(query).toArray()
+      const result = await paymentsCollection.find(query).toArray();
       // console.log(result);
-      res.send(result)
-    })
+      res.send(result);
+    });
 
     // POST API: paymentColection
-    app.post('/payments',async(req,res)=>{
-      const payment=req.body 
+    app.post("/payments", async (req, res) => {
+      const payment = req.body;
       // console.log("payment",payment);
-      const paymentResult=await paymentsCollection.insertOne(payment)
+      const paymentResult = await paymentsCollection.insertOne(payment);
 
       // res.send(paymentResult)
 
       // carefully delete item from cart
       // not working or refetch not working on client
-      const query={
-        _id:{
-          $in:payment.cartIds.map(id=>new ObjectId(id))
-        }
-      }
+      const query = {
+        _id: {
+          $in: payment.cartIds.map((id) => new ObjectId(id)),
+        },
+      };
 
-      const deleteResult=await cartsCollection.deleteMany(query)
+      const deleteResult = await cartsCollection.deleteMany(query);
 
-      res.send({paymentResult,deleteResult})
-    })
+      res.send({ paymentResult, deleteResult });
+    });
 
     // menuCollection APIs
     // GET all menu items
@@ -210,7 +246,7 @@ async function run() {
       };
       // console.log("foodItem==", foodItem);
 
-      const result=await menuCollection.updateOne(query,updatedItem)
+      const result = await menuCollection.updateOne(query, updatedItem);
 
       res.status(200).send(result);
     });
