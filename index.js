@@ -107,13 +107,16 @@ async function run() {
             $group: {
               _id: null,
               totalRevenue: {
-                $sum: "$price",
+                $sum: {
+                  $toDouble: "$price",
+                }
               },
             },
           },
         ])
         .toArray();
 
+      // console.log("revenueStat=>", revenueStat);
       const revenue =
         revenueStat.length > 0 ? revenueStat[0].totalRevenue.toFixed(2) : 0;
       res.send([revenue, usersStat, menuStat, paymentsStat, reviewsStat]);
@@ -125,7 +128,7 @@ async function run() {
       const email = req.params.email;
       const orderQuery = { userEmail: email };
       const query = { email: email };
-      console.log("user-stats query=>", query);
+      // console.log("user-stats query=>", query);
       const reviewsCount = await reviewsCollection.countDocuments(query);
       const ordersCountInCart = await cartsCollection.countDocuments(
         orderQuery
@@ -153,6 +156,8 @@ async function run() {
         ])
         .toArray();
 
+      // console.log("totalMoneySpent==>",totalMoneySpent);
+
       const totalSpent = totalMoneySpent.reduce(
         (sum, item) => sum + item.totalSpent,
         0
@@ -167,11 +172,52 @@ async function run() {
       ]);
     });
 
+    // order-stats
+    app.get("/order-stats", async (req, res) => {
+      const result = await paymentsCollection
+        .aggregate([
+          {
+            $unwind: "$menuItemIds",
+          },
+          {
+            $lookup: {
+              from: "menu",
+              localField: "menuItemIds",
+              foreignField: "_id",
+              as: "menuItems",
+            },
+          },
+          {
+            $unwind: "$menuItems",
+          },
+          {
+            $group: {
+              _id: "$menuItems.category",
+              quantity: {
+                $sum: 1,
+              },
+              revenue: { $sum: "$menuItems.price" },
+            },
+          },
+          {
+            $project: {
+              _id: 0,
+              category: "$_id",
+              quantity: "$quantity",
+              revenue: "$revenue",
+            },
+          },
+        ])
+        .toArray();
+
+      res.send(result);
+    });
+
     // PAYMENT GATEWAY API
     app.post("/create-payment-intent", verifyToken, async (req, res) => {
       const { price } = req.body;
       const amount = parseInt(price * 100);
-      console.log("amount==>", amount);
+      // console.log("amount==>", amount);
 
       const paymentIntent = await stripe.paymentIntents.create({
         amount: amount,
