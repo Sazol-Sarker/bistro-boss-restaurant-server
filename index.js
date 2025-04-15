@@ -126,10 +126,12 @@ async function run() {
     // /user-stats API
     app.get("/user-stats/:email", async (req, res) => {
       const email = req.params.email;
+      const name=req.query.name
       const orderQuery = { userEmail: email };
       const query = { email: email };
+      const reviewQuery={name:name}
       // console.log("user-stats query=>", query);
-      const reviewsCount = await reviewsCollection.countDocuments(query);
+      const reviewsCount = await reviewsCollection.countDocuments(reviewQuery);
       const ordersCountInCart = await cartsCollection.countDocuments(
         orderQuery
       );
@@ -234,13 +236,24 @@ async function run() {
     // GET API
     app.get("/payments/:email", async (req, res) => {
       const query = { email: req.params.email };
+      // TODO: in review page-> fetch all prev purchased items
+      // const purchasedItems=req.query.purchasedItems
+      // console.log(purchasedItems,typeof purchasedItems);
       // console.log(query);
-      const result = await paymentsCollection.find(query).toArray();
+      let result = await paymentsCollection.find(query).toArray();
+
+      // if(purchasedItems)
+      // {
+      //   const menuQuery={_id:{
+      //     $in:result.menuItemIds
+      //   }}
+      //   result=await menuCollection.find(menuQuery).toArray()
+      // }
       // console.log(result);
       res.send(result);
     });
 
-    // POST API: paymentColection
+    // POST API: paymentCollection
     app.post("/payments", async (req, res) => {
       const payment = req.body;
       // console.log("payment",payment);
@@ -320,7 +333,7 @@ Bon appétit!
       const result = await menuCollection.findOne(query);
 
       // console.log("result=>", result);
-      // res.send([])
+     
       res.send(result);
     });
 
@@ -368,6 +381,22 @@ Bon appétit!
       res.send(result);
     });
 
+    // post a review in DB***-----
+    app.post('/reviews',async(req,res)=>{
+      const data=req.body
+      const newReview={
+        name:req.body.name,
+        details:req.body.details,
+        rating:req.body.rating,
+      }
+      
+    
+      const result=await reviewsCollection.insertOne(newReview)
+
+      res.send(result)
+    
+    })
+
     // cartsCollection APIs
     // get all api
     app.get("/carts", verifyToken, async (req, res) => {
@@ -375,6 +404,7 @@ Bon appétit!
       const result = await cartsCollection.find(query).toArray();
       res.send(result);
     });
+
 
     // insert a carts item (itemId,userEmail,ItemName,ItemImage,price)
     app.post("/carts", verifyToken, async (req, res) => {
@@ -401,8 +431,9 @@ Bon appétit!
     });
 
     // GET API: check user role:admin/user
-    app.get("/users/:email", verifyToken, async (req, res) => {
+    app.get("/users/:email",verifyToken, async (req, res) => {
       const email = req.params.email;
+      // console.log("email -- decoded email==> ",email,req.decoded.email);
 
       //real user or intruder checking info of other user
       if (email !== req.decoded.email) {
