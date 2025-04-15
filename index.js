@@ -65,6 +65,7 @@ async function run() {
     const cartsCollection = client.db("bistroBossDB").collection("carts");
     const usersCollection = client.db("bistroBossDB").collection("users");
     const paymentsCollection = client.db("bistroBossDB").collection("payments");
+    const reservationsCollection = client.db("bistroBossDB").collection("reservations");
 
     // verifyAdmin middleware
     const verifyAdmin = async (req, res, next) => {
@@ -240,7 +241,7 @@ async function run() {
       // const purchasedItems=req.query.purchasedItems
       // console.log(purchasedItems,typeof purchasedItems);
       // console.log(query);
-      let result = await paymentsCollection.find(query).toArray();
+      let result = await paymentsCollection.find(query).sort({date:-1}).toArray();
 
       // if(purchasedItems)
       // {
@@ -376,7 +377,7 @@ Bon appétit!
     // reviewsCollection APIs
     // GET all reviewsCollection items
     app.get("/reviews", async (req, res) => {
-      const result = await reviewsCollection.find().toArray();
+      const result = await reviewsCollection.find().sort({rating:-1}).toArray();
 
       res.send(result);
     });
@@ -492,6 +493,36 @@ Bon appétit!
       const result = await usersCollection.updateOne(query, updatedData);
       res.send(result);
     });
+
+    //  APIS: reservationsCollection
+    // POST API: single
+    app.post('/reservations',async(req,res)=>{
+      const newReservation=req.body 
+
+      const result=await reservationsCollection.insertOne(newReservation)
+
+      res.send(result)
+    })
+
+    // GET API: all by email
+    app.get('/reservations/:email',async(req,res)=>{
+      const email=req.params.email 
+      const query={reservationEmail:email}
+
+      const result=await reservationsCollection.find(query).toArray()
+
+      res.send(result)
+    })
+
+    // DELETE API: single reservation
+    app.delete('/reservations/:id',async(req,res)=>{
+      const id=req.params.id 
+      // console.log(id);
+      const query={_id:new ObjectId(id)}
+      const result=await reservationsCollection.deleteOne(query)
+
+      res.send(result)
+    })
 
     // **************************
 
