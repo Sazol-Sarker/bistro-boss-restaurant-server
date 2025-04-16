@@ -1,5 +1,6 @@
 const express = require("express");
 const app = express();
+const axios=require('axios')
 require("dotenv").config();
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
@@ -66,6 +67,7 @@ async function run() {
     const usersCollection = client.db("bistroBossDB").collection("users");
     const paymentsCollection = client.db("bistroBossDB").collection("payments");
     const reservationsCollection = client.db("bistroBossDB").collection("reservations");
+    const contactMsgsCollection = client.db("bistroBossDB").collection("contactMsgs");
 
     // verifyAdmin middleware
     const verifyAdmin = async (req, res, next) => {
@@ -504,6 +506,33 @@ Bon appétit!
       res.send(result)
     })
 
+    //PATCH API: reservation 
+    app.patch('/reservations/:id',async(req,res)=>{
+      const id=req.params.id
+      const isConfirmed=req.body.isConfirmed
+
+      const query={_id:new ObjectId(id)}
+
+      const updatedData={
+        $set:{
+          status:`${isConfirmed?"confirmed":"cancelled"}`
+        }
+      }
+
+      const result=await reservationsCollection.updateOne(query,updatedData)
+
+      res.send(result)
+    })
+
+    // GET API: ALL for admin dashboard
+    app.get('/reservations',async(req,res)=>{
+     
+
+      const result=await reservationsCollection.find().toArray()
+
+      res.send(result)
+    })
+
     // GET API: all by email
     app.get('/reservations/:email',async(req,res)=>{
       const email=req.params.email 
@@ -523,6 +552,77 @@ Bon appétit!
 
       res.send(result)
     })
+
+    // // contactUs API : check recaptcha V2, send email/store to DB
+    // app.post('/contactUs',async(req,res)=>{
+    //   const contactData=req.body 
+    //   console.log(contactData);
+    //   // ReCaptcha verify
+    //   const response=contactData.token 
+    //   const secret=process.env.RECAPTCHA_V2_API_KEY
+
+    //   const captchaRes=await axios.post('https://www.google.com/recaptcha/api/siteverify',null,{params:{secret,response}})
+      
+    //   if(captchaRes.data.success){
+    //     // process the ContactData
+    //     console.log("Captcha correct!");
+    //   }
+
+
+
+    //   res.send([{msg:'captcha ok'}])
+
+    // })
+
+    app.post('/contactUs', async (req, res) => {
+      const contactData = req.body;
+      // console.log("contactData==>",contactData);
+      const response = contactData.token;
+      const secret = process.env.RECAPTCHA_V2_API_KEY;
+    
+      try {
+        // ReCAPTCHA verify
+        const captchaRes = await axios.post(
+          'https://www.google.com/recaptcha/api/siteverify',
+          null,
+          {
+            params: {
+              secret,
+              response,
+            },
+          }
+        );
+    
+        if (captchaRes.data.success) {
+          // console.log("✅ Captcha correct!");
+          // Process contactData (e.g., send email/store in DB)
+
+          // POST API: contactMsgsCollection
+          const newContactMsg={
+            name:contactData.contactorName,
+            email:contactData.contactorEmail,
+            phone:contactData.contactorPhoneNo,
+            msg:contactData.review
+          }
+          const contactRes=await contactMsgsCollection.insertOne(newContactMsg)
+
+          return res.status(200).send(contactRes);
+        } else {
+          console.log("❌ Captcha failed:", captchaRes.data['error-codes']);
+          return res.status(403).json({ msg: 'Invalid captcha' });
+        }
+      } catch (error) {
+        console.error("❌ reCAPTCHA verification error:", error.message);
+        return res.status(500).json({ msg: 'Captcha verification failed' });
+      }
+    });
+
+    // GET API: contactMsg
+    app.get('/contactMsg',async(req,res)=>{
+      const result=await contactMsgsCollection.find().toArray()
+      res.send(result)
+    })
+    
 
     // **************************
 
