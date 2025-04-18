@@ -18,7 +18,7 @@ const mg = mailgun.client({
 });
 
 // MIDDLEWARES
-app.use(cors());
+app.use(cors({origin:['https://bistro-boss-restaurant-2e856.web.app','https://bistro-boss-restaurant-2e856.firebaseapp.com']}));
 app.use(express.json());
 
 // custom middleware
@@ -78,7 +78,7 @@ async function run() {
 
       const isAdmin = user?.role === "admin";
       if (!isAdmin) {
-        console.log("Get out , you notAdmin begger");
+        // console.log("Get out , you notAdmin begger");
         return res.status(403).send({ msg: "forbidden access" });
       }
 
@@ -274,11 +274,10 @@ async function run() {
       //   })
       mg.messages
         .create(process.env.MAILGUN_DOMAIN_EMAIL, {
-          from: `Your Restaurant <mailgun@${process.env.MAILGUN_DOMAIN_EMAIL}>`,
-          to: ["werehe6859@provko.com"],
-          subject: "Payment Confirmation – Thanks for Your Order!",
+          from: `Bistro Boss Restaurant <mailgun@${process.env.MAILGUN_DOMAIN_EMAIL}>`,
+          to: ["sazolsarker1@gmail.com"],
+          subject: "Payment Confirmation – Thanks for Your Food Order!",
           text: `Hi there,
-
 We’ve received your payment successfully. Thank you for ordering with us!
 
 Your delicious food is being prepared and will be on its way soon.
@@ -286,16 +285,16 @@ Your delicious food is being prepared and will be on its way soon.
 If you have any questions or special requests, feel free to reply to this email.
 
 Bon appétit!
-– The Your Restaurant Team`,
+– The Bistro Boss Restaurant Team`,
           html: `
       <div style="font-family: Arial, sans-serif; color: #333;">
-        <h2>Thank you for your {payment.price.toFixed(2)} payment!</h2>
+        <h2>Thank you for your <b>$ ${payment.price}</b> payment!</h2>
         <p>Hi there,</p>
         <p>We’ve successfully received your payment and are now preparing your order.</p>
         <p>Our team is making sure everything is perfect, and your food will be on the way shortly!</p>
         <p>If you have any questions, feel free to reply to this email.</p>
         <br />
-        <p>Bon appétit!<br />– The <strong>Your Restaurant</strong> Team</p>
+        <p>Bon appétit! <br />– The <strong>Bistro Boss Restaurant</strong> Team</p>
       </div>
     `,
         })
@@ -608,11 +607,11 @@ Bon appétit!
 
           return res.status(200).send(contactRes);
         } else {
-          console.log("❌ Captcha failed:", captchaRes.data['error-codes']);
+          // console.log("❌ Captcha failed:", captchaRes.data['error-codes']);
           return res.status(403).json({ msg: 'Invalid captcha' });
         }
       } catch (error) {
-        console.error("❌ reCAPTCHA verification error:", error.message);
+        // console.error("❌ reCAPTCHA verification error:", error.message);
         return res.status(500).json({ msg: 'Captcha verification failed' });
       }
     });
@@ -645,3 +644,5 @@ app.get("/", (req, res) => {
 app.listen(port, () => {
   console.log("app is running at port=>", port);
 });
+
+
