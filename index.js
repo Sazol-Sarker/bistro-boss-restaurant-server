@@ -18,7 +18,9 @@ const mg = mailgun.client({
 });
 
 // MIDDLEWARES
-app.use(cors({origin:['https://bistro-boss-restaurant-2e856.web.app','https://bistro-boss-restaurant-2e856.firebaseapp.com']}));
+app.use(cors({origin:['https://bistro-boss-restaurant-2e856.web.app',
+  'https://bistro-boss-restaurant-2e856.firebaseapp.com','http://localhost:5173']}));
+// app.use(cors());
 app.use(express.json());
 
 // custom middleware
