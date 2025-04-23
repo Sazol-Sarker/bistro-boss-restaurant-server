@@ -1,12 +1,17 @@
 const express = require("express");
 const app = express();
-const axios=require('axios')
+const axios = require("axios");
 require("dotenv").config();
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const port = process.env.PORT || 5000;
 // payment gateway
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+const SSLCommerzPayment = require("sslcommerz-lts");
+const store_id = process.env.SSLCOMMERZE_STORE_ID;
+const store_passwd = process.env.SSLCOMMERZE_STORE_PASS;
+const is_live = false; //true for live, false for sandbox
+const sslcz = new SSLCommerzPayment(store_id, store_passwd, is_live);
 
 // Mailgun mailer
 const formData = require("form-data");
@@ -18,10 +23,18 @@ const mg = mailgun.client({
 });
 
 // MIDDLEWARES
-app.use(cors({origin:['https://bistro-boss-restaurant-2e856.web.app',
-  'https://bistro-boss-restaurant-2e856.firebaseapp.com','http://localhost:5173']}));
+app.use(
+  cors({
+    origin: [
+      "https://bistro-boss-restaurant-2e856.web.app",
+      "https://bistro-boss-restaurant-2e856.firebaseapp.com",
+      "http://localhost:5173",
+    ],
+  })
+);
 // app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded());
 
 // custom middleware
 const verifyToken = (req, res, next) => {
@@ -68,8 +81,12 @@ async function run() {
     const cartsCollection = client.db("bistroBossDB").collection("carts");
     const usersCollection = client.db("bistroBossDB").collection("users");
     const paymentsCollection = client.db("bistroBossDB").collection("payments");
-    const reservationsCollection = client.db("bistroBossDB").collection("reservations");
-    const contactMsgsCollection = client.db("bistroBossDB").collection("contactMsgs");
+    const reservationsCollection = client
+      .db("bistroBossDB")
+      .collection("reservations");
+    const contactMsgsCollection = client
+      .db("bistroBossDB")
+      .collection("contactMsgs");
 
     // verifyAdmin middleware
     const verifyAdmin = async (req, res, next) => {
@@ -114,7 +131,7 @@ async function run() {
               totalRevenue: {
                 $sum: {
                   $toDouble: "$price",
-                }
+                },
               },
             },
           },
@@ -131,10 +148,10 @@ async function run() {
     // /user-stats API
     app.get("/user-stats/:email", async (req, res) => {
       const email = req.params.email;
-      const name=req.query.name
+      const name = req.query.name;
       const orderQuery = { userEmail: email };
       const query = { email: email };
-      const reviewQuery={name:name}
+      const reviewQuery = { name: name };
       // console.log("user-stats query=>", query);
       const reviewsCount = await reviewsCollection.countDocuments(reviewQuery);
       const ordersCountInCart = await cartsCollection.countDocuments(
@@ -220,7 +237,7 @@ async function run() {
       res.send(result);
     });
 
-    // PAYMENT GATEWAY API
+    // PAYMENT GATEWAY API: stripe
     app.post("/create-payment-intent", verifyToken, async (req, res) => {
       const { price } = req.body;
       const amount = parseInt(price * 100);
@@ -245,7 +262,10 @@ async function run() {
       // const purchasedItems=req.query.purchasedItems
       // console.log(purchasedItems,typeof purchasedItems);
       // console.log(query);
-      let result = await paymentsCollection.find(query).sort({date:-1}).toArray();
+      let result = await paymentsCollection
+        .find(query)
+        .sort({ date: -1 })
+        .toArray();
 
       // if(purchasedItems)
       // {
@@ -337,7 +357,7 @@ Bon appétit!
       const result = await menuCollection.findOne(query);
 
       // console.log("result=>", result);
-     
+
       res.send(result);
     });
 
@@ -380,26 +400,27 @@ Bon appétit!
     // reviewsCollection APIs
     // GET all reviewsCollection items
     app.get("/reviews", async (req, res) => {
-      const result = await reviewsCollection.find().sort({rating:-1}).toArray();
+      const result = await reviewsCollection
+        .find()
+        .sort({ rating: -1 })
+        .toArray();
 
       res.send(result);
     });
 
     // post a review in DB***-----
-    app.post('/reviews',async(req,res)=>{
-      const data=req.body
-      const newReview={
-        name:req.body.name,
-        details:req.body.details,
-        rating:req.body.rating,
-      }
-      
-    
-      const result=await reviewsCollection.insertOne(newReview)
+    app.post("/reviews", async (req, res) => {
+      const data = req.body;
+      const newReview = {
+        name: req.body.name,
+        details: req.body.details,
+        rating: req.body.rating,
+      };
 
-      res.send(result)
-    
-    })
+      const result = await reviewsCollection.insertOne(newReview);
+
+      res.send(result);
+    });
 
     // cartsCollection APIs
     // get all api
@@ -408,7 +429,6 @@ Bon appétit!
       const result = await cartsCollection.find(query).toArray();
       res.send(result);
     });
-
 
     // insert a carts item (itemId,userEmail,ItemName,ItemImage,price)
     app.post("/carts", verifyToken, async (req, res) => {
@@ -435,13 +455,15 @@ Bon appétit!
     });
 
     // GET API: check user role:admin/user
-    app.get("/users/:email",verifyToken, async (req, res) => {
+    app.get("/users/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
       // console.log("email -- decoded email==> ",email,req.decoded.email);
 
       //real user or intruder checking info of other user
       if (email !== req.decoded.email) {
-        return res.status(401).send({ msg: "forbidden :user email problem hain" });
+        return res
+          .status(401)
+          .send({ msg: "forbidden :user email problem hain" });
       }
 
       const query = { email: email };
@@ -499,92 +521,88 @@ Bon appétit!
 
     //  APIS: reservationsCollection
     // POST API: single
-    app.post('/reservations',async(req,res)=>{
-      const newReservation=req.body 
+    app.post("/reservations", async (req, res) => {
+      const newReservation = req.body;
 
-      const result=await reservationsCollection.insertOne(newReservation)
+      const result = await reservationsCollection.insertOne(newReservation);
 
-      res.send(result)
-    })
+      res.send(result);
+    });
 
-    //PATCH API: reservation 
-    app.patch('/reservations/:id',async(req,res)=>{
-      const id=req.params.id
-      const isConfirmed=req.body.isConfirmed
+    //PATCH API: reservation
+    app.patch("/reservations/:id", async (req, res) => {
+      const id = req.params.id;
+      const isConfirmed = req.body.isConfirmed;
 
-      const query={_id:new ObjectId(id)}
+      const query = { _id: new ObjectId(id) };
 
-      const updatedData={
-        $set:{
-          status:`${isConfirmed?"confirmed":"cancelled"}`
-        }
-      }
+      const updatedData = {
+        $set: {
+          status: `${isConfirmed ? "confirmed" : "cancelled"}`,
+        },
+      };
 
-      const result=await reservationsCollection.updateOne(query,updatedData)
+      const result = await reservationsCollection.updateOne(query, updatedData);
 
-      res.send(result)
-    })
+      res.send(result);
+    });
 
     // GET API: ALL for admin dashboard
-    app.get('/reservations',async(req,res)=>{
-     
+    app.get("/reservations", async (req, res) => {
+      const result = await reservationsCollection.find().toArray();
 
-      const result=await reservationsCollection.find().toArray()
-
-      res.send(result)
-    })
+      res.send(result);
+    });
 
     // GET API: all by email
-    app.get('/reservations/:email',async(req,res)=>{
-      const email=req.params.email 
-      const query={reservationEmail:email}
+    app.get("/reservations/:email", async (req, res) => {
+      const email = req.params.email;
+      const query = { reservationEmail: email };
 
-      const result=await reservationsCollection.find(query).toArray()
+      const result = await reservationsCollection.find(query).toArray();
 
-      res.send(result)
-    })
+      res.send(result);
+    });
 
     // DELETE API: single reservation
-    app.delete('/reservations/:id',async(req,res)=>{
-      const id=req.params.id 
+    app.delete("/reservations/:id", async (req, res) => {
+      const id = req.params.id;
       // console.log(id);
-      const query={_id:new ObjectId(id)}
-      const result=await reservationsCollection.deleteOne(query)
+      const query = { _id: new ObjectId(id) };
+      const result = await reservationsCollection.deleteOne(query);
 
-      res.send(result)
-    })
+      res.send(result);
+    });
 
     // // contactUs API : check recaptcha V2, send email/store to DB
     // app.post('/contactUs',async(req,res)=>{
-    //   const contactData=req.body 
+    //   const contactData=req.body
     //   console.log(contactData);
     //   // ReCaptcha verify
-    //   const response=contactData.token 
+    //   const response=contactData.token
     //   const secret=process.env.RECAPTCHA_V2_API_KEY
 
     //   const captchaRes=await axios.post('https://www.google.com/recaptcha/api/siteverify',null,{params:{secret,response}})
-      
+
     //   if(captchaRes.data.success){
     //     // process the ContactData
     //     console.log("Captcha correct!");
     //   }
 
-
-
     //   res.send([{msg:'captcha ok'}])
 
     // })
 
-    app.post('/contactUs', async (req, res) => {
+    app.post("/contactUs", async (req, res) => {
       const contactData = req.body;
       // console.log("contactData==>",contactData);
       const response = contactData.token;
       const secret = process.env.RECAPTCHA_V2_API_KEY;
-    
+
       try {
         // ReCAPTCHA verify
         const captchaRes = await axios.post(
-          'https://www.google.com/recaptcha/api/siteverify',
+          "https://www.google.com/recaptcha/api/siteverify",
           null,
           {
             params: {
@@ -593,37 +611,202 @@ Bon appétit!
             },
           }
         );
-    
+
         if (captchaRes.data.success) {
           // console.log("✅ Captcha correct!");
           // Process contactData (e.g., send email/store in DB)
 
           // POST API: contactMsgsCollection
-          const newContactMsg={
-            name:contactData.contactorName,
-            email:contactData.contactorEmail,
-            phone:contactData.contactorPhoneNo,
-            msg:contactData.review
-          }
-          const contactRes=await contactMsgsCollection.insertOne(newContactMsg)
+          const newContactMsg = {
+            name: contactData.contactorName,
+            email: contactData.contactorEmail,
+            phone: contactData.contactorPhoneNo,
+            msg: contactData.review,
+          };
+          const contactRes = await contactMsgsCollection.insertOne(
+            newContactMsg
+          );
 
           return res.status(200).send(contactRes);
         } else {
           // console.log("❌ Captcha failed:", captchaRes.data['error-codes']);
-          return res.status(403).json({ msg: 'Invalid captcha' });
+          return res.status(403).json({ msg: "Invalid captcha" });
         }
       } catch (error) {
         // console.error("❌ reCAPTCHA verification error:", error.message);
-        return res.status(500).json({ msg: 'Captcha verification failed' });
+        return res.status(500).json({ msg: "Captcha verification failed" });
       }
     });
 
     // GET API: contactMsg
-    app.get('/contactMsg',async(req,res)=>{
-      const result=await contactMsgsCollection.find().toArray()
-      res.send(result)
-    })
-    
+    app.get("/contactMsg", async (req, res) => {
+      const result = await contactMsgsCollection.find().toArray();
+      res.send(result);
+    });
+
+    // SSLCOMMERZE
+    //     Store ID: bistr68074f8368a2d
+    // Store Password (API/Secret Key): bistr68074f8368a2d@ssl
+
+    // Merchant Panel URL: https://sandbox.sslcommerz.com/manage/ (Credential as you inputted in the time of registration)
+
+    // Store name: testbistr24cb
+    // Registered URL: www.bistrobosspro.com
+    // Session API to generate transaction: https://sandbox.sslcommerz.com/gwprocess/v3/api.php
+    // Validation API: https://sandbox.sslcommerz.com/validator/api/validationserverAPI.php?wsdl
+    // Validation API (Web Service) name: https://sandbox.sslcommerz.com/validator/api/validationserverAPI.php
+
+    //sslcommerz init
+    // app.get("/create-ssl-payment", (req, res) => {
+    //   const payment=req.body
+    //   const data = {
+    //     total_amount: 100,
+    //     currency: "BDT",
+    //     tran_id: "REF123", // use unique tran_id for each api call
+    //     success_url: "http://localhost:3030/success",
+    //     fail_url: "http://localhost:3030/fail",
+    //     cancel_url: "http://localhost:3030/cancel",
+    //     ipn_url: "http://localhost:3030/ipn",
+    //     shipping_method: "Courier",
+    //     product_name: "Computer.",
+    //     product_category: "Electronic",
+    //     product_profile: "general",
+    //     cus_name: "Customer Name",
+    //     cus_email: "customer@example.com",
+    //     cus_add1: "Dhaka",
+    //     cus_add2: "Dhaka",
+    //     cus_city: "Dhaka",
+    //     cus_state: "Dhaka",
+    //     cus_postcode: "1000",
+    //     cus_country: "Bangladesh",
+    //     cus_phone: "01711111111",
+    //     cus_fax: "01711111111",
+    //     ship_name: "Customer Name",
+    //     ship_add1: "Dhaka",
+    //     ship_add2: "Dhaka",
+    //     ship_city: "Dhaka",
+    //     ship_state: "Dhaka",
+    //     ship_postcode: 1000,
+    //     ship_country: "Bangladesh",
+    //   };
+    //   const sslcz = new SSLCommerzPayment(store_id, store_passwd, is_live);
+    //   sslcz.init(data).then((apiResponse) => {
+    //     // Redirect the user to payment gateway
+    //     let GatewayPageURL = apiResponse.GatewayPageURL;
+    //     res.redirect(GatewayPageURL);
+    //     console.log("Redirecting to: ", GatewayPageURL);
+    //   });
+    // });
+
+    // SSLCommerz
+    app.post("/create-ssl-payment", async (req, res) => {
+      const payment = req.body;
+      console.log("ssl payment==>", payment);
+
+      const trxId = new ObjectId().toString();
+      payment.transactionId = trxId;
+
+      const data = {
+        store_id,
+        store_passwd,
+        total_amount: payment.price,
+        currency: "BDT",
+        tran_id: trxId, // use unique tran_id for each api call
+        success_url: "http://localhost:5000/ssl-payment-success",
+        fail_url: "http://localhost:5173/fail",
+        cancel_url: "http://localhost:5173/cancel",
+        ipn_url: "http://localhost:5000/ssl-ipn-payment",
+        shipping_method: "Courier",
+        product_name: "Computer.",
+        product_category: "Electronic",
+        product_profile: "general",
+        cus_name: `${payment.email.split("@")[0]}`,
+        cus_email: `${payment.email}`,
+        cus_add1: "Dhaka",
+        cus_add2: "Dhaka",
+        cus_city: "Dhaka",
+        cus_state: "Dhaka",
+        cus_postcode: "1000",
+        cus_country: "Bangladesh",
+        cus_phone: "01711111111",
+        cus_fax: "01711111111",
+        ship_name: "Customer Name",
+        ship_add1: "Dhaka",
+        ship_add2: "Dhaka",
+        ship_city: "Dhaka",
+        ship_state: "Dhaka",
+        ship_postcode: 1000,
+        ship_country: "Bangladesh",
+      };
+
+      try {
+        const apiResponse = await sslcz.init(data);
+        console.log(apiResponse);
+
+        if (apiResponse?.GatewayPageURL) {
+          // save payment to DB
+          const paymentResult = await paymentsCollection.insertOne(payment);
+          console.log("Redirecting to:", apiResponse.GatewayPageURL);
+          res.send({ url: apiResponse.GatewayPageURL }); // send to frontend for redirect
+        } else {
+          res.status(500).send({
+            message: "Failed to initiate payment",
+            details: apiResponse,
+          });
+        }
+      } catch (error) {
+        console.error("SSLCommerz SDK error:", error);
+        res.status(500).send({ message: "SSLCommerz initialization error" });
+      }
+    });
+
+    app.post("/ssl-payment-success", async (req, res) => {
+      console.log("req.body==>", req.body);
+      const { val_id, tran_id, amount, currency } = req.body;
+
+      if (!val_id) {
+        return res
+          .status(400)
+          .send({ message: "Missing val_id in request body." });
+      }
+
+      try {
+        const data = await sslcz.validate({ val_id }); // assuming it accepts object
+        console.log("validate data:-->>", data);
+
+        if (data?.status === "VALID") {
+          // send email for transaction success
+
+          // update payment to DB
+          const query = { transactionId: data.tran_id };
+          const update = {
+            $set: {
+              status: "success"
+            },
+          };
+          const paymentResult = await paymentsCollection.updateOne(query,update);
+
+
+          res.redirect('http://localhost:5173/payment-success')
+
+          // res.send({
+          //   message: "Payment validated successfully.",
+          //   tran_id,
+          //   amount,
+          //   currency,
+          // });
+
+
+        } else {
+          res
+            .status(400)
+            .send({ message: "Payment validation failed.", details: data });
+        }
+      } catch (error) {
+        console.error("Error during SSLCommerz validation:", error);
+        res.status(500).send({ message: "SSLCommerz validation error" });
+      }
+    });
 
     // **************************
 
@@ -646,5 +829,3 @@ app.get("/", (req, res) => {
 app.listen(port, () => {
   console.log("app is running at port=>", port);
 });
-
-
