@@ -28,7 +28,7 @@ app.use(
     origin: [
       "https://bistro-boss-restaurant-2e856.web.app",
       "https://bistro-boss-restaurant-2e856.firebaseapp.com",
-      "http://localhost:5173",
+      "https://bistro-boss-restaurant-2e856.web.app",
     ],
   })
 );
@@ -743,7 +743,7 @@ Bon appétit!
 
 
 
-          res.redirect('http://localhost:5173/payment-success')
+          res.redirect('https://bistro-boss-restaurant-2e856.web.app/payment-success')
 
           // res.send({
           //   message: "Payment validated successfully.",
@@ -765,10 +765,10 @@ Bon appétit!
     });
 
     app.post('/fail',async(req,res)=>{
-      res.redirect('http://localhost:5173/fail')
+      res.redirect('https://bistro-boss-restaurant-2e856.web.app/fail')
     })
     app.post('/cancel',async(req,res)=>{
-      res.redirect('http://localhost:5173/cancel')
+      res.redirect('https://bistro-boss-restaurant-2e856.web.app/cancel')
     })
 
     // **************************
